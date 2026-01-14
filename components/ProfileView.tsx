@@ -1307,7 +1307,7 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
                       }
                     }}
                   >
-                    <DiscordIcon className="w-4 h-4" style={{ color: 'rgba(88, 101, 242, 0.9)' }} />
+                    <img src="/icons/discord.svg" alt="Discord" className="w-4 h-4" />
                     <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>{connections.discord.username}</Typography>
                   </Box>
                 )}
@@ -1340,7 +1340,7 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
                       }
                     }}
                   >
-                    <SteamIcon className="w-4 h-4" style={{ color: 'rgba(100, 100, 100, 0.9)' }} />
+                    <img src="/icons/steam.png" alt="Steam" className="w-4 h-4" />
                     <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>{connections.steam.username}</Typography>
                   </Box>
                 )}
@@ -1373,7 +1373,7 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
                       }
                     }}
                   >
-                    <GitHubIcon className="w-4 h-4" style={{ color: 'rgba(100, 100, 100, 0.9)' }} />
+                    <img src="/icons/github.svg" alt="GitHub" className="w-4 h-4" />
                     <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>@{connections.github.username}</Typography>
                   </Box>
                 )}
@@ -1406,7 +1406,7 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
                       }
                     }}
                   >
-                    <TwitchIcon className="w-4 h-4" style={{ color: 'rgba(139, 92, 246, 0.9)' }} />
+                    <img src="/icons/twitch.svg" alt="Twitch" className="w-4 h-4" />
                     <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>{connections.twitch.displayName || connections.twitch.username}</Typography>
                   </Box>
                 )}

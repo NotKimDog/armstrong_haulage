@@ -329,6 +329,7 @@ export default function AuthPage() {
 
               <button
                 type="button"
+                onClick={handleGithub}
                 className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
               >
                 <GitHubIcon className="w-5 h-5 text-gray-300" />
@@ -337,6 +338,7 @@ export default function AuthPage() {
 
               <button
                 type="button"
+                onClick={handleSteam}
                 className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
               >
                 <img src="/icons/steam.png" alt="Steam" className="w-5 h-5" />
@@ -345,6 +347,7 @@ export default function AuthPage() {
 
               <button
                 type="button"
+                onClick={handleTwitch}
                 className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
               >
                 <img src="/icons/twitch.svg" alt="Twitch" className="w-5 h-5" />
@@ -472,6 +475,7 @@ export default function AuthPage() {
 
               <button
                 type="button"
+                onClick={handleGithub}
                 className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
               >
                 <GitHubIcon className="w-5 h-5 text-gray-300" />
@@ -480,6 +484,7 @@ export default function AuthPage() {
 
               <button
                 type="button"
+                onClick={handleSteam}
                 className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
               >
                 <img src="/icons/steam.png" alt="Steam" className="w-5 h-5" />
@@ -488,6 +493,7 @@ export default function AuthPage() {
 
               <button
                 type="button"
+                onClick={handleTwitch}
                 className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
               >
                 <img src="/icons/twitch.svg" alt="Twitch" className="w-5 h-5" />
