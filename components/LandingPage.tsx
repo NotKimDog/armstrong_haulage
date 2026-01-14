@@ -409,7 +409,7 @@ function LandingPage({ miles: milesProp, members: membersProp, jobsDelivered: jo
                     aria-label="Join our Discord (opens in new tab)"
                     className="px-8 py-4 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-full font-bold text-lg transition-all flex items-center justify-center gap-3"
                   >
-                    <Image src='/discord.svg' alt='Discord Logo' width={20} height={20}/> Join Discord
+                    <Image src='/icons/discord.svg' alt='Discord Logo' width={20} height={20}/> Join Discord
                   </motion.div>
                 </Link>
               </div>
