@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { auth } from "../../app/api/lib/firebase";
+import { auth } from "../app/api/lib/firebase";
 import { updateProfile } from "firebase/auth";
 
 export default function VerifyEmailPage() {

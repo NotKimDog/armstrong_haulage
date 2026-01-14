@@ -62,6 +62,9 @@ export default function SearchPage() {
               });
             }
           });
+        
+        // Limit to 10 results
+        arr.splice(10);
         }
 
         setResults(arr);

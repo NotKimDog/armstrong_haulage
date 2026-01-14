@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     // Firestore doesn't support contains; do a prefix search using >= and <= with \uffff
     const end = q + '\uffff';
     const usersCol = collection(db, 'users');
-    const qref = query(usersCol, orderBy('displayName'), where('displayName', '>=', q), where('displayName', '<=', end), limit(25));
+    const qref = query(usersCol, orderBy('displayName'), where('displayName', '>=', q), where('displayName', '<=', end), limit(10));
     const snap = await getDocs(qref);
     const users: Array<any> = [];
     snap.forEach((doc) => {
