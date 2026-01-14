@@ -45,11 +45,20 @@ export default function VerifyEmailPage() {
             const response = await fetch("/api/user/profile/verify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, uid: tokenUid }),
-            // Redirect after 2 seconds
-            setTimeout(() => {
-              router.push("/");
-            }, 2000);
+              body: JSON.stringify({ email, uid: tokenUid }),
+            });
+            
+            if (response.ok) {
+              setStatus("success");
+              setMessage("Email verified successfully! Redirecting...");
+              // Redirect after 2 seconds
+              setTimeout(() => {
+                router.push("/");
+              }, 2000);
+            } else {
+              setStatus("error");
+              setMessage("Failed to verify email. Please try again.");
+            }
           } catch (err) {
             console.error("Firebase update error:", err);
             setStatus("error");
