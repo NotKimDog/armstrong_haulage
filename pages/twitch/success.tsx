@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { signInWithCustomToken } from 'firebase/auth';
+import { auth } from '@/app/api/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Box, Typography } from '@mui/material';
 
@@ -12,7 +14,7 @@ export default function TwitchSuccess() {
   useEffect(() => {
     const processAuth = async () => {
       try {
-        // Try to get the new auth_data (contains token)
+        // Try to get the new auth_data (contains custom token)
         const authDataParam = router.query.auth_data as string;
         if (authDataParam) {
           try {
@@ -22,7 +24,15 @@ export default function TwitchSuccess() {
 
             console.log('Twitch success - received auth token for user:', user.uid);
 
-            // Store user info in localStorage
+            // Sign in with custom token to establish Firebase auth state
+            try {
+              await signInWithCustomToken(auth, token);
+              console.log('Successfully signed in with custom token');
+            } catch (authError) {
+              console.error('Failed to sign in with custom token:', authError);
+            }
+
+            // Store user info in localStorage for immediate access
             const mapped = {
               displayName: user.displayName,
               email: user.email,
@@ -33,14 +43,9 @@ export default function TwitchSuccess() {
               localStorage.setItem('user', JSON.stringify(mapped));
             } catch {}
 
-            // Dispatch auth event
+            // Dispatch auth event for other listeners
             try {
               window.dispatchEvent(new CustomEvent('auth-change', { detail: mapped }));
-            } catch {}
-
-            // Store auth token in localStorage for persistence
-            try {
-              localStorage.setItem('authToken', token);
             } catch {}
 
             setStatus('Connected successfully!');

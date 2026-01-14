@@ -69,6 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         displayName: player.personaname,
         photoURL: player.avatarfull,
         provider: 'steam',
+        providerId: player.steamid,
       }),
     });
 

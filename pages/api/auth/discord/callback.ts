@@ -90,6 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         displayName: user.username,
         photoURL: avatarUrl,
         provider: 'discord',
+        providerId: user.id,
       }),
     });
 

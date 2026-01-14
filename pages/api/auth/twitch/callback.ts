@@ -82,6 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         displayName: user.display_name,
         photoURL: user.profile_image_url,
         provider: 'twitch',
+        providerId: user.id,
       }),
     });
 

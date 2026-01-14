@@ -64,6 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         displayName: user.login,
         photoURL: user.avatar_url,
         provider: 'github',
+        providerId: String(user.id),
       }),
     });
 

@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { signInWithCustomToken } from "firebase/auth";
+import { auth } from "../../app/api/lib/firebase";
 
 export default function GitHubSuccess() {
   const router = useRouter();
@@ -11,7 +13,7 @@ export default function GitHubSuccess() {
       try {
         const params = new URLSearchParams(window.location.search);
         
-        // Try to get the new auth_data (contains token)
+        // Try to get the new auth_data (contains custom token)
         const authDataParam = params.get('auth_data');
         if (authDataParam) {
           try {
@@ -21,7 +23,15 @@ export default function GitHubSuccess() {
 
             console.log('GitHub success - received auth token for user:', user.uid);
 
-            // Store user info in localStorage
+            // Sign in with custom token to establish Firebase auth state
+            try {
+              await signInWithCustomToken(auth, token);
+              console.log('Successfully signed in with custom token');
+            } catch (authError) {
+              console.error('Failed to sign in with custom token:', authError);
+            }
+
+            // Store user info in localStorage for immediate access
             const mapped = {
               displayName: user.displayName,
               email: user.email,
@@ -32,17 +42,12 @@ export default function GitHubSuccess() {
               localStorage.setItem('user', JSON.stringify(mapped));
             } catch {}
 
-            // Dispatch auth event
+            // Dispatch auth event for other listeners
             try {
               window.dispatchEvent(new CustomEvent('auth-change', { detail: mapped }));
             } catch {}
 
-            // Store auth token in localStorage for persistence
-            try {
-              localStorage.setItem('authToken', token);
-            } catch {}
-
-            // Redirect to home or profile
+            console.log('GitHub - redirecting to home');
             setTimeout(() => {
               router.replace('/');
             }, 500);
