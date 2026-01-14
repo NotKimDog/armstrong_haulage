@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDatabase, ref, remove } from "firebase/database";
 import { app } from "@/app/api/lib/firebase";
 
-export async function DELETE(request: NextRequest, ctx: any) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ notificationId: string }> }) {
   try {
-    const resolvedParams = await ctx.params;
-    const notificationId = resolvedParams.notificationId as string;
+    const { notificationId } = await params;
 
     if (!notificationId) {
       return NextResponse.json(

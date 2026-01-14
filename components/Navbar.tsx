@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Info, Images, Menu, X, ChevronRight, LogIn, LogOut, User as UserIcon, ChevronDown, Settings, Search, Loader2, Bell } from "lucide-react";
+import { Home, Info, Images, Menu, X, ChevronRight, LogIn, LogOut, User as UserIcon, ChevronDown, Settings, Search, Loader2, Bell, Shield, Users, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { auth, app } from "../app/api/lib/firebase";
@@ -17,6 +17,8 @@ type MappedUser = {
   photoURL?: string | null;
   uid: string;
   verified?: boolean;
+  admin?: boolean;
+  status?: string;
 };
 
 // Cloudflare auth context and hooks
@@ -24,6 +26,8 @@ type MappedUser = {
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCommunityOpen, setIsCommunityOpen] = useState(false);
+  const [isResourcesOpen, setIsResourcesOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<MappedUser | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,8 +51,22 @@ export default function Navbar() {
         const response = await fetch('/api/auth/verify');
         const data = await response.json();
         if (data.authenticated && data.user) {
-          setUser(data.user as MappedUser);
-          console.debug('Navbar: initial auth verified (server)', data.user);
+          const userData = data.user as MappedUser;
+          // Fetch admin status from profile
+          if (userData.uid) {
+            try {
+              const profileRes = await fetch(`/api/user/profile/${userData.uid}`);
+              if (profileRes.ok) {
+                const profileData = await profileRes.json();
+                userData.admin = profileData.admin === true;
+              }
+            } catch (err) {
+              console.error('Failed to fetch admin status:', err);
+            }
+          }
+          setUser(userData);
+          try { localStorage.setItem('user', JSON.stringify(userData)); } catch {}
+          console.debug('Navbar: initial auth verified (server)', userData);
         } else {
           const storedUser = localStorage.getItem('user');
           console.debug('Navbar: initial localStorage user', storedUser);
@@ -67,9 +85,21 @@ export default function Navbar() {
     let unsub: (() => void) | undefined;
     try {
       if (auth) {
-        unsub = onAuthStateChanged(auth, (u) => {
+        unsub = onAuthStateChanged(auth, async (u) => {
           if (u) {
-            const mapped = { displayName: u.displayName, email: u.email, photoURL: u.photoURL, uid: u.uid };
+            const mapped: MappedUser = { displayName: u.displayName, email: u.email, photoURL: u.photoURL, uid: u.uid };
+            // Fetch admin status and user status from profile
+            try {
+              const profileRes = await fetch(`/api/user/profile/${u.uid}`);
+              if (profileRes.ok) {
+                const profileData = await profileRes.json();
+                mapped.admin = profileData.admin === true;
+                mapped.status = profileData.status || 'online';
+              }
+            } catch (err) {
+              console.error('Failed to fetch admin status:', err);
+              mapped.status = 'online';
+            }
             setUser(mapped);
             try { localStorage.setItem('user', JSON.stringify(mapped)); } catch {}
             console.debug('Navbar:onAuthStateChanged ->', mapped);
@@ -214,6 +244,12 @@ export default function Navbar() {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false);
       }
+      if (communityRef.current && !communityRef.current.contains(event.target as Node)) {
+        setIsCommunityOpen(false);
+      }
+      if (resourcesRef.current && !resourcesRef.current.contains(event.target as Node)) {
+        setIsResourcesOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -239,9 +275,24 @@ export default function Navbar() {
 
   const navLinks = [
     { name: "Home", href: "/", icon: <Home className="w-4 h-4" /> },
-    { name: "About", href: "/about", icon: <Info className="w-4 h-4" /> },
-    { name: "Gallery", href: "/gallery", icon: <Images className="w-4 h-4" /> },
   ];
+
+  const communityLinks = [
+    { name: "Leaderboard", href: "/leaderboard", requireAuth: false },
+    { name: "Activity Feed", href: "/activity", requireAuth: true },
+    { name: "Achievements", href: "/achievements", requireAuth: true },
+    { name: "Analytics", href: "/analytics", requireAuth: true },
+    { name: "Search Members", href: "/search", requireAuth: false },
+  ];
+
+  const resourcesLinks = [
+    { name: "About Us", href: "/about", requireAuth: false },
+    { name: "Gallery", href: "/gallery", requireAuth: false },
+    { name: "Apply Now", href: "https://hub.truckyapp.com/company/40764", requireAuth: false, external: true },
+  ];
+
+  const communityRef = useRef<HTMLDivElement>(null);
+  const resourcesRef = useRef<HTMLDivElement>(null);
 
   // Debounced search for profiles
   useEffect(() => {
@@ -294,7 +345,7 @@ export default function Navbar() {
   return (
     <>
     <nav className={`fixed w-full z-50 transition-all duration-300 ${scrolled || isOpen ? "bg-black/80 backdrop-blur-md border-b border-white/10 py-2" : "bg-transparent py-4"}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 relative">
           {/* Logo - Left */}
           <div className="flex items-center gap-3 shrink-0">
@@ -315,7 +366,7 @@ export default function Navbar() {
           </div>
           
           {/* Center Search Bar - Hidden on Mobile */}
-          <div className="hidden md:block absolute left-1/2 transform -translate-x-1/2 w-52" ref={searchRef}>
+          <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2 w-80" ref={searchRef}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               <input
@@ -392,12 +443,116 @@ export default function Navbar() {
           
           {/* Right Side - Nav Links & User Menu */}
           <div className="hidden md:block shrink-0 ml-auto">
-            <div className="flex items-center space-x-1">
+            <div className="flex items-center space-x-2">
               {navLinks.map((link) => (
                 <NavLink key={link.href} href={link.href} icon={link.icon} isActive={pathname === link.href}>
                   {link.name}
                 </NavLink>
               ))}
+              
+              {/* Community Dropdown */}
+              <div 
+                className="relative" 
+                ref={communityRef}
+                onMouseEnter={() => setIsCommunityOpen(true)}
+                onMouseLeave={() => setIsCommunityOpen(false)}
+              >
+                <button
+                  className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isCommunityOpen || (pathname && ['/leaderboard', '/activity', '/achievements', '/analytics', '/search'].includes(pathname))
+                      ? 'text-purple-400 bg-white/10'
+                      : 'text-gray-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  Community
+                  <ChevronDown className={`w-4 h-4 transition-transform ${
+                    isCommunityOpen ? 'rotate-180' : ''
+                  }`} />
+                </button>
+                
+                <AnimatePresence>
+                  {isCommunityOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-0 mt-2 w-52 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-50"
+                    >
+                      <div className="p-1">
+                        {communityLinks.map((link) => (
+                          (!link.requireAuth || user) && (
+                            <Link
+                              key={link.href}
+                              href={link.href}
+                              className={`w-full block px-4 py-2.5 text-sm rounded-lg transition-colors ${
+                                pathname === link.href
+                                  ? 'text-purple-400 bg-white/10'
+                                  : 'text-gray-300 hover:text-white hover:bg-white/5'
+                              }`}
+                            >
+                              {link.name}
+                            </Link>
+                          )
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              
+              {/* Resources Dropdown */}
+              <div 
+                className="relative" 
+                ref={resourcesRef}
+                onMouseEnter={() => setIsResourcesOpen(true)}
+                onMouseLeave={() => setIsResourcesOpen(false)}
+              >
+                <button
+                  className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isResourcesOpen || (pathname && ['/about', '/gallery'].includes(pathname))
+                      ? 'text-purple-400 bg-white/10'
+                      : 'text-gray-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Info className="w-4 h-4" />
+                  Resources
+                  <ChevronDown className={`w-4 h-4 transition-transform ${
+                    isResourcesOpen ? 'rotate-180' : ''
+                  }`} />
+                </button>
+                
+                <AnimatePresence>
+                  {isResourcesOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-0 mt-2 w-48 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-50"
+                    >
+                      <div className="p-1">
+                        {resourcesLinks.map((link) => (
+                          <Link
+                            key={link.href}
+                            href={link.href}
+                            target={link.external ? '_blank' : undefined}
+                            className={`w-full block px-4 py-2.5 text-sm rounded-lg transition-colors ${
+                              pathname === link.href
+                                ? 'text-purple-400 bg-white/10'
+                                : 'text-gray-300 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            {link.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              
               <div className="w-px h-6 bg-white/10 mx-2" />
               {user ? (
                 <>
@@ -475,24 +630,37 @@ export default function Navbar() {
                   </div>
 
                   {/* User Profile Button */}
-                <div className="relative" ref={profileRef}>
+                <div 
+                  className="relative" 
+                  ref={profileRef}
+                  onMouseEnter={() => setIsProfileOpen(true)}
+                  onMouseLeave={() => setIsProfileOpen(false)}
+                >
                   <button
-                    onClick={() => setIsProfileOpen(!isProfileOpen)}
                     className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-full border border-white/10 hover:bg-white/10 transition-all"
                   >
-                    {user.photoURL ? (
-                      <Image
-                        src={user.photoURL}
-                        alt={user.displayName || "User"}
-                        width={32}
-                        height={32}
-                        className="rounded-full ring-2 ring-purple-500/50"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold">
-                        {user.displayName ? user.displayName[0].toUpperCase() : <UserIcon className="w-4 h-4" />}
-                      </div>
-                    )}
+                    <div className="relative">
+                      {user.photoURL ? (
+                        <Image
+                          src={user.photoURL}
+                          alt={user.displayName || "User"}
+                          width={32}
+                          height={32}
+                          className="rounded-full ring-2 ring-purple-500/50"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold">
+                          {user.displayName ? user.displayName[0].toUpperCase() : <UserIcon className="w-4 h-4" />}
+                        </div>
+                      )}
+                      {/* Status indicator */}
+                      <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                        user.status === 'online' ? 'bg-green-500' :
+                        user.status === 'away' ? 'bg-yellow-500' :
+                        user.status === 'dnd' ? 'bg-red-500' :
+                        'bg-gray-500'
+                      }`}></div>
+                    </div>
                     <span className="text-sm font-medium text-white hidden sm:flex items-center gap-2">
                       {user.displayName || user.email?.split('@')[0]}
                       {user.verified && (
@@ -519,7 +687,6 @@ export default function Navbar() {
                           <Link
                             href="/profile"
                             className="w-full block px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                            onClick={() => setIsProfileOpen(false)}
                           >
                             <div className="flex items-center gap-2">
                               <UserIcon className="w-4 h-4" />
@@ -529,13 +696,23 @@ export default function Navbar() {
                           <Link
                             href="/settings"
                             className="w-full block px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                            onClick={() => setIsProfileOpen(false)}
                           >
                             <div className="flex items-center gap-2">
                               <Settings className="w-4 h-4" />
                               Settings
                             </div>
                           </Link>
+                          {user.admin && (
+                            <Link
+                              href="/admin"
+                              className="w-full block px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4" />
+                                Admin
+                              </div>
+                            </Link>
+                          )}
                           <div className="h-px bg-white/10 my-1" />
                           <button
                             onClick={handleSignOut}
@@ -591,6 +768,42 @@ export default function Navbar() {
                   {link.name}
                 </MobileNavLink>
               ))}
+              
+              {/* Community Section in Mobile */}
+              <div className="pt-2 pb-2">
+                <div className="flex items-center gap-2 px-4 py-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
+                  <Users className="w-4 h-4" />
+                  Community
+                </div>
+                {communityLinks.map((link, i) => (
+                  (!link.requireAuth || user) && (
+                    <MobileNavLink key={link.href} href={link.href} icon={undefined} index={navLinks.length + i} isActive={pathname === link.href}>
+                      {link.name}
+                    </MobileNavLink>
+                  )
+                ))}
+              </div>
+              
+              {/* Resources Section in Mobile */}
+              <div className="pt-2 pb-2">
+                <div className="flex items-center gap-2 px-4 py-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
+                  <Info className="w-4 h-4" />
+                  Resources
+                </div>
+                {resourcesLinks.map((link, i) => (
+                  <MobileNavLink 
+                    key={link.href} 
+                    href={link.href} 
+                    icon={undefined} 
+                    index={navLinks.length + communityLinks.length + i} 
+                    isActive={pathname === link.href}
+                    target={link.external ? '_blank' : undefined}
+                  >
+                    {link.name}
+                  </MobileNavLink>
+                ))}
+              </div>
+              
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -697,11 +910,15 @@ function MobileNavLink({ href, children, icon, index, isActive, target }: { href
       <Link 
         href={href} 
         target={target}
+        rel={target === '_blank' ? 'noopener noreferrer' : undefined}
         className={`w-full block px-4 py-3 rounded-lg text-base font-medium transition-colors ${isActive ? "bg-white/10 text-white" : "text-gray-300 hover:bg-white/5 hover:text-white"}`}
       >
         <div className="flex items-center gap-3 justify-between">
           <span className="flex items-center gap-3">{icon} {children}</span>
-          {isActive && <ChevronRight className="w-4 h-4 text-purple-500" />}
+          <span className="flex items-center gap-2">
+            {target === '_blank' && <ExternalLink className="w-4 h-4 text-gray-400" />}
+            {isActive && <ChevronRight className="w-4 h-4 text-purple-500" />}
+          </span>
         </div>
       </Link>
     </motion.div>

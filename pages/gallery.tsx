@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 
 export default function Gallery() {
 return (
-  <main className="grow flex items-center justify-center relative overflow-hidden px-4 min-h-screen bg-neutral-950">
+  <main className="grow flex items-center justify-center relative overflow-hidden px-4 min-h-screen bg-neutral-950 pt-32">
     {/* Background gradient */}
     <div className="absolute inset-0 bg-linear-to-b from-purple-900/20 via-neutral-950/80 to-neutral-950 pointer-events-none z-0" />
 

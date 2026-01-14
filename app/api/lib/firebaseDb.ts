@@ -21,6 +21,7 @@ interface UserProfile {
   bannerURL?: string;
   createdAt: number;
   updatedAt: number;
+  admin?: boolean;
 }
 
 interface UserStats {
@@ -184,6 +185,30 @@ export async function setLivestreamers(data: any[]): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('Error setting livestreamers:', error);
+    return false;
+  }
+}
+
+export async function setUserAdmin(userId: string, isAdmin: boolean): Promise<boolean> {
+  try {
+    const database = getDb();
+    await update(ref(database, `users/${userId}`), {
+      admin: isAdmin,
+      updatedAt: Date.now(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error setting user admin status:', error);
+    return false;
+  }
+}
+
+export async function checkIsAdmin(userId: string): Promise<boolean> {
+  try {
+    const profile = await getUserProfile(userId);
+    return profile?.admin === true;
+  } catch (error) {
+    console.error('Error checking admin status:', error);
     return false;
   }
 }

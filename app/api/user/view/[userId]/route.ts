@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, ref, get, update, child } from 'firebase/database';
 import { app } from '@/app/api/lib/firebase';
 
-export async function POST(request: NextRequest, ctx: any) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   try {
-    const resolvedParams = await ctx.params;
-    const userId = resolvedParams.userId as string;
+    const { userId } = await params;
 
     // Validate userId
     if (!userId || typeof userId !== 'string' || userId.trim() === '') {

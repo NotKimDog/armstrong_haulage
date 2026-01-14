@@ -6,10 +6,11 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Archivo_Black } from "next/font/google";
-import { User, Lock, ArrowRight, Truck, LogIn, Check, Eye, EyeOff } from "lucide-react";
+import { User, Lock, Truck, LogIn, Eye, EyeOff, Zap, TrendingUp, Users as UsersIcon, ExternalLink } from "lucide-react";
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
 import type { User as FirebaseUser } from "firebase/auth";
 import { auth } from "../app/api/lib/firebase";
+import { DiscordIcon, GitHubIcon, SteamIcon, TwitchIcon } from "../components/BrandIcons";
 
 const archivoBlack = Archivo_Black({
   weight: "400",
@@ -30,9 +31,7 @@ export default function AuthPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // if a query param asks for register, show it
     setMode(defaultMode);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function getErrorMessage(err: unknown, fallback = "An error occurred.") {
@@ -40,7 +39,6 @@ export default function AuthPage() {
     if (typeof err === "string") return err;
     if (err instanceof Error) return err.message;
     try {
-      // try to coerce unknown objects to string
       const asAny = err as { message?: unknown };
       if (asAny && typeof asAny.message === "string") return asAny.message as string;
     } catch {
@@ -56,16 +54,15 @@ export default function AuthPage() {
   function setLocalUserFromFirebase(u: FirebaseUser | null) {
     if (!u) return;
     const mapped = { displayName: u.displayName || (u.email ? u.email.split('@')[0] : undefined), email: u.email || undefined, photoURL: u.photoURL || undefined, uid: u.uid };
-      try { localStorage.setItem('user', JSON.stringify(mapped)); } catch {}
-      try { window.dispatchEvent(new CustomEvent('auth-change', { detail: mapped })); } catch {}
-    }
+    try { localStorage.setItem('user', JSON.stringify(mapped)); } catch {}
+    try { window.dispatchEvent(new CustomEvent('auth-change', { detail: mapped })); } catch {}
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
     try {
-      // set persistence based on rememberMe
       try { await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence); } catch {}
       const cred = await signInWithEmailAndPassword(auth, email, password);
       setLocalUserFromFirebase(cred.user);
@@ -85,9 +82,7 @@ export default function AuthPage() {
     try {
       try { await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence); } catch {}
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      
       setLocalUserFromFirebase(cred.user);
-      // Show message and redirect
       alert("Account created successfully!");
       router.push("/");
     } catch (err: unknown) {
@@ -115,11 +110,46 @@ export default function AuthPage() {
     }
   };
 
+  const handleGithub = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      window.location.href = "/api/auth/github";
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, "GitHub sign-in failed.");
+      setError(msg.replace?.("Firebase: ", "") ?? msg);
+      setIsLoading(false);
+    }
+  };
+
+  const handleSteam = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      window.location.href = "/api/auth/steam";
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, "Steam sign-in failed.");
+      setError(msg.replace?.("Firebase: ", "") ?? msg);
+      setIsLoading(false);
+    }
+  };
+
+  const handleTwitch = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      window.location.href = "/api/auth/twitch";
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, "Twitch sign-in failed.");
+      setError(msg.replace?.("Firebase: ", "") ?? msg);
+      setIsLoading(false);
+    }
+  };
+
   const handleDiscord = async () => {
     setIsLoading(true);
     setError("");
     try {
-      // Redirect to API route which starts the Discord OAuth flow
       window.location.href = "/api/auth/discord";
     } catch (err: unknown) {
       const msg = getErrorMessage(err, "Discord sign-in failed.");
@@ -129,154 +159,155 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center relative overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 z-0">
-        <Image
-          src="/background/3.png"
-          alt="Trucking Background"
-          fill
-          className="object-cover opacity-30"
-          priority
-        />
-        <div className="absolute inset-0 bg-linear-to-b from-neutral-950 via-neutral-950/80 to-neutral-950 z-10" />
-        {/* subtle animated blobs */}
-        <div className="absolute inset-0 z-10 overflow-hidden pointer-events-none">
-          <motion.div
-            animate={{ x: [0, 60, 0], opacity: [0.06, 0.18, 0.06] }}
-            transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-            className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-600/16 rounded-full blur-3xl"
-          />
-          <motion.div
-            animate={{ x: [0, -60, 0], opacity: [0.06, 0.18, 0.06] }}
-            transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-            className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-blue-600/16 rounded-full blur-3xl"
-          />
-        </div>
-      </div>
-
-      <div className="relative z-20 w-full max-w-lg px-6">
+    <div className="min-h-screen flex bg-neutral-950">
+      {/* Left Side - Form */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 py-12 bg-black">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-          className="bg-neutral-900/50 backdrop-blur-2xl border border-white/6 p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden group"
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+          className="max-w-md w-full mx-auto"
         >
-          <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-transparent via-purple-500 to-transparent opacity-50" />
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-colors duration-500" />
-          <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-colors duration-500" />
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-linear-to-br from-purple-600/20 to-blue-600/20 rounded-2xl flex items-center justify-center border border-white/8 shadow-[0_0_20px_rgba(168,85,247,0.08)]">
-                <Truck className="w-8 h-8 text-purple-400" />
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center shadow-lg">
+                <Truck className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <h1 className={`text-2xl sm:text-3xl font-extrabold text-white tracking-tight ${archivoBlack.className}`}>Driver Portal</h1>
-                <p className="text-gray-400 text-sm">{mode === "login" ? "Sign in to your account" : "Create a new account"}</p>
-              </div>
+              <h1 className={`text-4xl font-black text-white ${archivoBlack.className}`}>Armstrong Haulage</h1>
             </div>
+            <p className="text-gray-300 text-lg font-semibold">Connected Fleet Management</p>
+            <p className="text-gray-500 text-sm mt-2">Real-time logistics, team collaboration & performance tracking</p>
+          </div>
 
-            <div className="ml-auto flex items-center gap-2 bg-white/3 rounded-full p-1">
-              <button onClick={() => setMode("login")} className={`px-4 py-1 rounded-full text-sm transition ${mode === "login" ? 'bg-linear-to-r from-purple-600 to-blue-600 text-white' : 'text-gray-300 hover:text-white'}`}>Sign In</button>
-              <button onClick={() => setMode("register")} className={`px-4 py-1 rounded-full text-sm transition ${mode === "register" ? 'bg-linear-to-r from-purple-600 to-blue-600 text-white' : 'text-gray-300 hover:text-white'}`}>Register</button>
-            </div>
+          {/* Mode Tabs */}
+          <div className="flex gap-2 mb-8 bg-neutral-900 p-1 rounded-full border border-neutral-800">
+            <button
+              onClick={() => setMode("login")}
+              className={`flex-1 py-2.5 px-6 rounded-full font-bold transition ${
+                mode === "login"
+                  ? "bg-orange-600 text-white shadow-lg"
+                  : "text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => setMode("register")}
+              className={`flex-1 py-2.5 px-6 rounded-full font-bold transition ${
+                mode === "register"
+                  ? "bg-orange-600 text-white shadow-lg"
+                  : "text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              Register
+            </button>
           </div>
 
           {mode === "login" ? (
-            <form onSubmit={handleLogin} className="space-y-5 relative" suppressHydrationWarning>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Email Address</label>
-                <div className="relative group/input">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User className="w-5 h-5 text-gray-500 group-focus-within/input:text-purple-400 transition-colors" />
-                  </div>
+            <form onSubmit={handleLogin} className="space-y-6">
+              {/* Email */}
+              <div>
+                <label htmlFor="email-login" className="block text-sm font-bold text-gray-300 mb-2">Email Address</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600 pointer-events-none" />
                   <input
+                    id="email-login"
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-black/40 border border-white/8 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500/50 focus:bg-black/60 focus:ring-1 focus:ring-purple-500/20 transition-all"
+                    className="w-full bg-neutral-900 border-2 border-neutral-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-orange-500 focus:bg-neutral-800 transition-all"
                     placeholder="driver@armstronghaulage.com"
                     required
-                    suppressHydrationWarning
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Password</label>
-                <div className="relative group/input">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="w-5 h-5 text-gray-500 group-focus-within/input:text-purple-400 transition-colors" />
-                  </div>
+              {/* Password */}
+              <div>
+                <label htmlFor="password-login" className="block text-sm font-bold text-gray-300 mb-2">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600 pointer-events-none" />
                   <input
+                    id="password-login"
                     type={showPassword ? "text" : "password"}
+                    name="password"
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-black/40 border border-white/8 rounded-xl py-3.5 pl-12 pr-12 text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500/50 focus:bg-black/60 focus:ring-1 focus:ring-purple-500/20 transition-all"
+                    className="w-full bg-neutral-900 border-2 border-neutral-800 rounded-xl py-3 pl-12 pr-12 text-white placeholder:text-gray-600 focus:outline-none focus:border-orange-500 focus:bg-neutral-800 transition-all"
                     placeholder="••••••••"
                     required
-                    suppressHydrationWarning
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 hover:text-white transition-colors focus:outline-none"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
 
-              {error && (
-                <div className="text-red-500 text-sm text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20">
-                  {error}
-                </div>
-              )}
-
+              {/* Remember & Forgot */}
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer group/checkbox">
-                  <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${rememberMe ? 'bg-purple-600 border-purple-600' : 'bg-black/40 border-white/20 group-hover/checkbox:border-purple-500/50'}`}>
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                    />
-                    {rememberMe && <Check className="w-3.5 h-3.5 text-white" />}
-                  </div>
-                  <span className="text-sm text-gray-400 group-hover/checkbox:text-gray-300 transition-colors">Remember me</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-5 h-5 rounded border-2 border-neutral-700 cursor-pointer accent-orange-500 bg-neutral-900"
+                  />
+                  <span className="text-sm text-gray-400 font-medium">Remember me</span>
                 </label>
-                <Link href="#" className="text-sm text-purple-400 hover:text-purple-300 transition-colors font-medium">Forgot Password?</Link>
+                <Link href="#" className="text-sm font-semibold text-orange-500 hover:text-orange-400">
+                  Forgot password?
+                </Link>
               </div>
 
+              {/* Error */}
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-red-400 text-sm bg-red-950 p-3 rounded-lg border border-red-900"
+                >
+                  {error}
+                </motion.div>
+              )}
+
+              {/* Sign In Button */}
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-xl flex items-center justify-center gap-2 mt-4 disabled:opacity-70 disabled:cursor-not-allowed relative overflow-hidden"
+                className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <div className="absolute inset-0 bg-white/20 translate-y-full hover:translate-y-0 transition-transform duration-300" />
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    <LogIn className="w-5 h-5 relative z-10" /> <span className="relative z-10">Sign In</span>
+                    <LogIn className="w-5 h-5" />
+                    Sign In
                   </>
                 )}
               </motion.button>
 
-              <div className="flex items-center gap-4 my-6">
-                <div className="h-px bg-white/10 flex-1" />
-                <span className="text-xs text-gray-500 uppercase font-medium">Or continue with</span>
-                <div className="h-px bg-white/10 flex-1" />
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="h-px bg-neutral-800 flex-1" />
+                <span className="text-xs text-gray-600 font-semibold">OR</span>
+                <div className="h-px bg-neutral-800 flex-1" />
               </div>
 
+              {/* OAuth Buttons */}
               <button
                 type="button"
                 onClick={handleGoogle}
-                className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-100 flex items-center justify-center gap-3"
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -284,104 +315,142 @@ export default function AuthPage() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                 </svg>
-                Sign in with Google
+                Continue with Google
               </button>
-              <div className="mt-4">
+
+              <button
+                type="button"
+                onClick={handleDiscord}
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
+              >
+                <img src="/icons/discord.svg" alt="Discord" className="w-5 h-5" />
+                Continue with Discord
+              </button>
+
+              <button
+                type="button"
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
+              >
+                <GitHubIcon className="w-5 h-5 text-gray-300" />
+                Continue with GitHub
+              </button>
+
+              <button
+                type="button"
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
+              >
+                <img src="/icons/steam.png" alt="Steam" className="w-5 h-5" />
+                Continue with Steam
+              </button>
+
+              <button
+                type="button"
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
+              >
+                <img src="/icons/twitch.svg" alt="Twitch" className="w-5 h-5" />
+                Continue with Twitch
+              </button>
+
+              {/* Footer */}
+              <p className="text-center text-gray-500 text-sm">
+                New here?{" "}
                 <button
                   type="button"
-                  onClick={handleDiscord}
-                  className="w-full bg-[#5865F2] text-white font-semibold py-3 rounded-xl transition-all hover:brightness-90 flex items-center justify-center gap-3"
+                  onClick={() => setMode("register")}
+                  className="font-bold text-orange-500 hover:text-orange-400"
                 >
-                  <Image src="/discord.svg" alt="Discord" width={20} height={20} />
-                  Continue with Discord
+                  Create an account
                 </button>
-              </div>
-              <p className="text-center text-xs text-gray-400 mt-2">We only use Google to verify identity — no data is shared.</p>
-
-              <div className="mt-8 pt-6 border-t border-white/6 text-center relative">
-                <p className="text-gray-400 text-sm mb-2">New here?</p>
-                <button onClick={() => setMode("register")} className="inline-flex items-center gap-2 text-white font-semibold hover:text-purple-300 transition-colors group">
-                  Apply to Join <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-purple-500" />
-                </button>
-              </div>
+              </p>
             </form>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-5 relative" suppressHydrationWarning>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Email Address</label>
-                <div className="relative group/input">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User className="w-5 h-5 text-gray-500 group-focus-within/input:text-purple-400 transition-colors" />
-                  </div>
+            <form onSubmit={handleRegister} className="space-y-6">
+              {/* Email */}
+              <div>
+                <label htmlFor="email-register" className="block text-sm font-bold text-gray-300 mb-2">Email Address</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600 pointer-events-none" />
                   <input
+                    id="email-register"
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50 focus:bg-black/60 focus:ring-1 focus:ring-purple-500/20 transition-all"
+                    className="w-full bg-neutral-900 border-2 border-neutral-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-orange-500 focus:bg-neutral-800 transition-all"
                     placeholder="your@company.com"
                     required
-                    suppressHydrationWarning
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Password</label>
-                <div className="relative group/input">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="w-5 h-5 text-gray-500 group-focus-within/input:text-purple-400 transition-colors" />
-                  </div>
+              {/* Password */}
+              <div>
+                <label htmlFor="password-register" className="block text-sm font-bold text-gray-300 mb-2">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600 pointer-events-none" />
                   <input
+                    id="password-register"
                     type={showPassword ? "text" : "password"}
+                    name="password"
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl py-3.5 pl-12 pr-12 text-white placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50 focus:bg-black/60 focus:ring-1 focus:ring-purple-500/20 transition-all"
-                    placeholder="Choose a secure password"
+                    className="w-full bg-neutral-900 border-2 border-neutral-800 rounded-xl py-3 pl-12 pr-12 text-white placeholder:text-gray-600 focus:outline-none focus:border-orange-500 focus:bg-neutral-800 transition-all"
+                    placeholder="Create a strong password"
                     required
-                    suppressHydrationWarning
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 hover:text-white transition-colors focus:outline-none"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
 
+              {/* Error */}
               {error && (
-                <div className="text-red-500 text-sm text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-red-400 text-sm bg-red-950 p-3 rounded-lg border border-red-900"
+                >
                   {error}
-                </div>
+                </motion.div>
               )}
 
+              {/* Create Button */}
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold py-3.5 rounded-xl transition-all shadow-xl flex items-center justify-center gap-2 mt-4 disabled:opacity-70 disabled:cursor-not-allowed relative overflow-hidden"
+                className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    <LogIn className="w-5 h-5 relative z-10" /> <span className="relative z-10">Create Account</span>
+                    <LogIn className="w-5 h-5" />
+                    Create Account
                   </>
                 )}
               </motion.button>
 
-              <div className="flex items-center gap-4 my-6">
-                <div className="h-px bg-white/10 flex-1" />
-                <span className="text-xs text-gray-500 uppercase font-medium">Or continue with</span>
-                <div className="h-px bg-white/10 flex-1" />
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="h-px bg-neutral-800 flex-1" />
+                <span className="text-xs text-gray-600 font-semibold">OR</span>
+                <div className="h-px bg-neutral-800 flex-1" />
               </div>
 
+              {/* OAuth Buttons */}
               <button
                 type="button"
                 onClick={handleGoogle}
-                className="w-full bg-white text-black font-bold py-3.5 rounded-xl transition-all hover:bg-gray-100 flex items-center justify-center gap-3"
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -389,36 +458,129 @@ export default function AuthPage() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                 </svg>
-                Sign up with Google
+                Continue with Google
               </button>
-              <div className="mt-4">
+
+              <button
+                type="button"
+                onClick={handleDiscord}
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
+              >
+                <img src="/icons/discord.svg" alt="Discord" className="w-5 h-5" />
+                Continue with Discord
+              </button>
+
+              <button
+                type="button"
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
+              >
+                <GitHubIcon className="w-5 h-5 text-gray-300" />
+                Continue with GitHub
+              </button>
+
+              <button
+                type="button"
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
+              >
+                <img src="/icons/steam.png" alt="Steam" className="w-5 h-5" />
+                Continue with Steam
+              </button>
+
+              <button
+                type="button"
+                className="w-full bg-neutral-900 border-2 border-neutral-800 hover:border-neutral-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-3 hover:bg-neutral-800"
+              >
+                <img src="/icons/twitch.svg" alt="Twitch" className="w-5 h-5" />
+                Continue with Twitch
+              </button>
+
+              {/* Footer */}
+              <p className="text-center text-gray-500 text-sm">
+                Already have an account?{" "}
                 <button
                   type="button"
-                  onClick={handleDiscord}
-                  className="w-full bg-[#5865F2] text-white font-semibold py-3 rounded-xl transition-all hover:brightness-90 flex items-center justify-center gap-3"
+                  onClick={() => setMode("login")}
+                  className="font-bold text-orange-500 hover:text-orange-400"
                 >
-                  <Image src="/discord.svg" alt="Discord" width={20} height={20} />
-                  Continue with Discord
+                  Sign in
                 </button>
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-white/6 text-center relative">
-                <p className="text-gray-400 text-sm mb-2">Already have an account?</p>
-                <button onClick={() => setMode("login")} className="inline-flex items-center gap-2 text-white font-semibold hover:text-purple-300 transition-colors group">
-                  Sign In <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-purple-500" />
-                </button>
-              </div>
+              </p>
             </form>
           )}
         </motion.div>
+      </div>
+
+      {/* Right Side - Hero with Connections */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-neutral-900 via-orange-950 to-red-950 flex-col justify-center items-center p-12 relative overflow-hidden">
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        
+        {/* Background Image */}
+        <Image
+          src="/background/3.png"
+          alt="Trucking"
+          fill
+          className="object-cover opacity-20 absolute inset-0"
+        />
 
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center mt-8 text-gray-600 text-xs"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="relative z-10 text-white text-center"
         >
-          &copy; {new Date().getFullYear()} Armstrong Haulage. Protected System.
+          <h2 className={`text-5xl font-black mb-4 ${archivoBlack.className}`}>
+            Fleet Intelligence
+          </h2>
+          <p className="text-xl text-white/80 mb-12 max-w-md mx-auto leading-relaxed">
+            Connect your platforms for real-time tracking & team collaboration
+          </p>
+
+          {/* Feature Cards */}
+          <div className="grid grid-cols-1 gap-4">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-4 hover:bg-white/10 transition"
+            >
+              <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                <Zap className="w-6 h-6 text-orange-400" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-bold text-lg">Real-time Updates</h3>
+                <p className="text-sm text-gray-400">Live GPS & performance data</p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-4 hover:bg-white/10 transition"
+            >
+              <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-orange-400" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-bold text-lg">Analytics</h3>
+                <p className="text-sm text-gray-400">Performance insights & metrics</p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-4 hover:bg-white/10 transition"
+            >
+              <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                <UsersIcon className="w-6 h-6 text-orange-400" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-bold text-lg">Team Collaboration</h3>
+                <p className="text-sm text-gray-400">Organize & communicate</p>
+              </div>
+            </motion.div>
+          </div>
+
+          <p className="text-gray-500 text-sm mt-12">
+            &copy; 2026 Armstrong Haulage. Professional Fleet Intelligence.
+          </p>
         </motion.div>
       </div>
     </div>

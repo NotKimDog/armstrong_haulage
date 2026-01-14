@@ -4,8 +4,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { onAuthStateChanged, updateProfile } from "firebase/auth";
 import { auth, app, STORAGE_GS_URL } from "../app/api/lib/firebase";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { getDatabase, ref as dbRef, child as dbChild, get as dbGet } from 'firebase/database';
-import { Loader2, ShieldCheck, Share2, Camera, Check, X } from "lucide-react";
+import { getDatabase, ref as dbRef, child as dbChild, get as dbGet, update } from 'firebase/database';
+import { Loader2, ShieldCheck, Share2, Camera, Check, X, Users, Zap, Github, Music, Gamepad2, Globe, LogOut } from "lucide-react";
+import StatusSelector from "./StatusSelector";
+import { DiscordIcon, SteamIcon, GitHubIcon, TwitchIcon } from "./BrandIcons";
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Avatar from '@mui/material/Avatar';
@@ -15,6 +17,10 @@ import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 
 type UserProfile = {
   id: string;
@@ -27,6 +33,8 @@ type UserProfile = {
   website?: string | null;
   slug?: string | null;
   verified?: boolean;
+  status?: string;
+  lastActive?: number;
   stats?: {
     followers?: number;
     following?: number;
@@ -92,6 +100,23 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
   // Unit system state (metric or imperial)
   const [unitSystem, setUnitSystem] = useState<'metric' | 'imperial'>('metric');
 
+  // Status selector state
+  const [userStatus, setUserStatus] = useState<string>('online');
+  const [statusUpdating, setStatusUpdating] = useState(false);
+
+  // Connections state
+  const [connections, setConnections] = useState<{
+    discord?: { id: string; username: string; avatar?: string };
+    steam?: { id: string; username: string; avatar?: string };
+    github?: { id: string; username: string; avatar?: string };
+    twitch?: { id: string; username: string; displayName?: string; avatar?: string };
+  }>({});
+
+  // Delete connection modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [platformToDelete, setPlatformToDelete] = useState<string | null>(null);
+  const [deletingConnection, setDeletingConnection] = useState(false);
+
   // Initialize edit form fields when switching to Edit Profile tab
   useEffect(() => {
     if (activeTab === 1 && profile) {
@@ -101,6 +126,71 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
       setEditBannerURL(profile.bannerURL || '');
     }
   }, [activeTab, profile]);
+
+  // Handle status change
+  const handleStatusChange = async (newStatus: string) => {
+    if (!profile || currentViewerId !== profile.id) return;
+    
+    setStatusUpdating(true);
+    try {
+      const rtdb = getDatabase(app);
+      // Update user's status and lastActive timestamp in Firebase
+      const updateData: Record<string, any> = {
+        status: newStatus,
+        lastActive: Date.now(),
+      };
+      
+      await update(dbRef(rtdb, `users/${profile.id}`), updateData);
+      
+      // Also update the admin active-users endpoint
+      const response = await fetch('/api/admin/active-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: profile.id, status: newStatus }),
+      });
+
+      if (response.ok) {
+        // Update local state immediately
+        setUserStatus(newStatus);
+        // Update profile state to reflect new status
+        setProfile(prev => prev ? { ...prev, status: newStatus } : null);
+        console.log('Status updated successfully to:', newStatus);
+      } else {
+        console.error('Failed to update status on server');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  // Handle delete connection
+  const handleDeleteConnection = async (platform: string) => {
+    if (!profile || currentViewerId !== profile.id) return;
+    
+    setDeletingConnection(true);
+    try {
+      const response = await fetch(`/api/user/connections/${profile.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform }),
+      });
+
+      if (response.ok) {
+        console.log(`${platform} connection removed`);
+        setConnections(prev => ({ ...prev, [platform]: undefined }));
+      } else {
+        console.error(`Failed to remove ${platform} connection`);
+      }
+    } catch (error) {
+      console.error(`Error removing ${platform} connection:`, error);
+    } finally {
+      setDeletingConnection(false);
+      setDeleteModalOpen(false);
+      setPlatformToDelete(null);
+    }
+  };
 
   // Simple CountUp component for numeric stats
   const formatNumber = (num: number | string | undefined | null): string => {
@@ -304,6 +394,27 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
             verified: data.verified ?? false,
             stats: data.stats || { followers: 0, following: 0, views: 0 },
           });
+          // Set user status from profile data
+          setUserStatus(data.status || 'online');
+          // Load platform connections data
+          if (data.id) {
+            try {
+              const rtdb = getDatabase(app);
+              const userRef = dbRef(rtdb, `users/${data.id}`);
+              const snapshot = await dbGet(userRef);
+              if (snapshot.exists()) {
+                const userData = snapshot.val();
+                setConnections({
+                  discord: userData.connections?.discord,
+                  steam: userData.connections?.steam,
+                  github: userData.connections?.github,
+                  twitch: userData.connections?.twitch,
+                });
+              }
+            } catch (error) {
+              console.error('Error loading connections:', error);
+            }
+          }
           // prefill slug input if profile has slug
           if (data.slug) {
             setSlugInput(String(data.slug));
@@ -945,7 +1056,7 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
         </Box>
 
         {/* Profile Header Section - Overlapping Avatar */}
-        <Box sx={{ mt: { xs: 1, sm: 2, md: 5 }, mb: 4, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 3 }, alignItems: { xs: 'center', sm: 'flex-end' } }}>
+        <Box sx={{ mt: { xs: 1, sm: 2, md: 4 }, mb: 2.5, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 2.5 }, alignItems: { xs: 'center', sm: 'flex-end' } }}>
             {/* Avatar */}
             <Box sx={{
               position: 'relative',
@@ -1024,7 +1135,7 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
 
             {/* Profile Info */}
             <Box sx={{ flex: 1, textAlign: { xs: 'center', sm: 'left' } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: { xs: 'center', sm: 'flex-start' }, mb: 0.25 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: { xs: 'center', sm: 'flex-start' }, mb: 0.5 }}>
                 <Typography
                   variant="h3"
                   sx={{
@@ -1046,7 +1157,7 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
                   variant="body1"
                   sx={{
                     color: '#10b981',
-                    mb: 0.5,
+                    mb: 1,
                     fontWeight: 700,
                     fontSize: '0.85rem',
                     letterSpacing: '0.3px'
@@ -1060,42 +1171,55 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
                 <Typography
                   variant="body1"
                   sx={{
-                    color: 'rgba(255,255,255,0.9)',
+                    color: 'rgba(255,255,255,0.85)',
                     maxWidth: 600,
-                    lineHeight: 1.7,
-                    mb: 2,
-                    fontSize: '1rem',
-                    fontWeight: 500
+                    lineHeight: 1.6,
+                    mb: 1.5,
+                    fontSize: '0.95rem',
+                    fontWeight: 400
                   }}
                 >
                   {profile.bio}
                 </Typography>
               )}
 
+              {/* Status Selector - Only show if viewing own profile */}
+              {currentViewerId === profile?.id && (
+                <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <div className="w-full max-w-xs">
+                    <StatusSelector 
+                      currentStatus={userStatus}
+                      onStatusChange={handleStatusChange}
+                      loading={statusUpdating}
+                    />
+                  </div>
+                </Box>
+              )}
+
               {/* Action Buttons */}
-              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
                 <Button
                   variant="contained"
                   onClick={handleCopyShare}
                   sx={{
                     background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                     color: '#fff',
-                    fontWeight: 700,
+                    fontWeight: 600,
                     textTransform: 'none',
-                    px: 2.5,
-                    py: 0.8,
-                    fontSize: '0.85rem',
+                    px: 2,
+                    py: 0.6,
+                    fontSize: '0.8rem',
                     letterSpacing: '0.3px',
-                    boxShadow: '0 12px 32px rgba(16, 185, 129, 0.3)',
+                    boxShadow: '0 8px 24px rgba(16, 185, 129, 0.25)',
                     border: '1px solid rgba(16, 185, 129, 0.5)',
                     '&:hover': {
-                      transform: 'translateY(-3px)',
-                      boxShadow: '0 20px 48px rgba(16, 185, 129, 0.4)',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 12px 32px rgba(16, 185, 129, 0.3)',
                       background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
                     },
-                    transition: 'all 400ms cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    transition: 'all 300ms ease'
                   }}
-                  startIcon={shareCopied ? <Check className="w-5 h-5" /> : <Share2 className="w-5 h-5" />}
+                  startIcon={shareCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
                 >
                   {shareCopied ? 'Copied!' : 'Share'}
                 </Button>
@@ -1111,15 +1235,15 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
                         ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
                         : 'linear-gradient(135deg, #a855f7 0%, #9333ea 100%)',
                       color: '#fff',
-                      fontWeight: 700,
+                      fontWeight: 600,
                       textTransform: 'none',
-                      px: 2.5,
-                      py: 0.8,
-                      fontSize: '0.85rem',
+                      px: 2,
+                      py: 0.6,
+                      fontSize: '0.8rem',
                       letterSpacing: '0.3px',
                       boxShadow: isFollowing
-                        ? '0 12px 32px rgba(99, 102, 241, 0.3)'
-                        : '0 12px 32px rgba(168, 85, 247, 0.3)',
+                        ? '0 8px 20px rgba(99, 102, 241, 0.2)'
+                        : '0 8px 20px rgba(168, 85, 247, 0.2)',
                       border: isFollowing
                         ? '1px solid rgba(99, 102, 241, 0.5)'
                         : '1px solid rgba(168, 85, 247, 0.5)',
@@ -1144,6 +1268,152 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
               </Box>
             </Box>
           </Box>
+
+          {/* Connected Services - Show if any connections exist */}
+          {(connections.discord || connections.steam || connections.github || connections.twitch) && (
+            <Box sx={{ mb: 3 }}>
+              <Box sx={{ mb: 2 }}>
+                <Typography sx={{ fontSize: '0.75rem', color: 'rgba(168, 85, 247, 0.9)', fontWeight: 800, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                  🔗 Connected Services
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                {connections.discord && (
+                  <Box
+                    component="a"
+                    href={`https://discordapp.com/users/${connections.discord.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.75,
+                      px: 2,
+                      py: 0.8,
+                      borderRadius: '8px',
+                      bgcolor: 'rgba(88, 101, 242, 0.12)',
+                      border: '1px solid rgba(88, 101, 242, 0.4)',
+                      color: 'rgba(88, 101, 242, 0.95)',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      transition: 'all 300ms ease',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        bgcolor: 'rgba(88, 101, 242, 0.2)',
+                        borderColor: 'rgba(88, 101, 242, 0.7)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 24px rgba(88, 101, 242, 0.2)'
+                      }
+                    }}
+                  >
+                    <DiscordIcon className="w-4 h-4" style={{ color: 'rgba(88, 101, 242, 0.9)' }} />
+                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>{connections.discord.username}</Typography>
+                  </Box>
+                )}
+                {connections.steam && (
+                  <Box
+                    component="a"
+                    href={`https://steamcommunity.com/profiles/${connections.steam.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.75,
+                      px: 2,
+                      py: 0.8,
+                      borderRadius: '8px',
+                      bgcolor: 'rgba(100, 100, 100, 0.12)',
+                      border: '1px solid rgba(100, 100, 100, 0.4)',
+                      color: 'rgba(100, 100, 100, 0.95)',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      transition: 'all 300ms ease',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        bgcolor: 'rgba(100, 100, 100, 0.2)',
+                        borderColor: 'rgba(100, 100, 100, 0.7)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 24px rgba(100, 100, 100, 0.2)'
+                      }
+                    }}
+                  >
+                    <SteamIcon className="w-4 h-4" style={{ color: 'rgba(100, 100, 100, 0.9)' }} />
+                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>{connections.steam.username}</Typography>
+                  </Box>
+                )}
+                {connections.github && (
+                  <Box
+                    component="a"
+                    href={`https://github.com/${connections.github.username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.75,
+                      px: 2,
+                      py: 0.8,
+                      borderRadius: '8px',
+                      bgcolor: 'rgba(100, 100, 100, 0.12)',
+                      border: '1px solid rgba(100, 100, 100, 0.4)',
+                      color: 'rgba(100, 100, 100, 0.95)',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      transition: 'all 300ms ease',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        bgcolor: 'rgba(100, 100, 100, 0.2)',
+                        borderColor: 'rgba(100, 100, 100, 0.7)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 24px rgba(100, 100, 100, 0.2)'
+                      }
+                    }}
+                  >
+                    <GitHubIcon className="w-4 h-4" style={{ color: 'rgba(100, 100, 100, 0.9)' }} />
+                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>@{connections.github.username}</Typography>
+                  </Box>
+                )}
+                {connections.twitch && (
+                  <Box
+                    component="a"
+                    href={`https://twitch.tv/${connections.twitch.username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.75,
+                      px: 2,
+                      py: 0.8,
+                      borderRadius: '8px',
+                      bgcolor: 'rgba(139, 92, 246, 0.12)',
+                      border: '1px solid rgba(139, 92, 246, 0.4)',
+                      color: 'rgba(139, 92, 246, 0.95)',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      transition: 'all 300ms ease',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        bgcolor: 'rgba(139, 92, 246, 0.2)',
+                        borderColor: 'rgba(139, 92, 246, 0.7)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 24px rgba(139, 92, 246, 0.2)'
+                      }
+                    }}
+                  >
+                    <TwitchIcon className="w-4 h-4" style={{ color: 'rgba(139, 92, 246, 0.9)' }} />
+                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>{connections.twitch.displayName || connections.twitch.username}</Typography>
+                  </Box>
+                )}
+              </Box>
+              <Divider sx={{ my: 2.5, borderColor: 'rgba(255,255,255,0.05)' }} />
+            </Box>
+          )}
 
           {/* Stats Section */}
           <Box sx={{ display: 'flex', gap: { xs: 3, sm: 4 }, justifyContent: { xs: 'center', sm: 'flex-start' }, mb: 3 }}>
@@ -1503,6 +1773,434 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
                       {150 - editBio.length} characters remaining
                     </Typography>
                   )}
+                </Box>
+
+                {/* Connected Services Section */}
+                <Box>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="caption" sx={{ color: 'rgba(168, 85, 247, 0.9)', fontWeight: 800, letterSpacing: '0.8px', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                      🔗 Connected Services
+                    </Typography>
+                  </Box>
+                  
+                  {/* Connected Services Grid */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2, mb: 3 }}>
+                    {/* Discord Service Card */}
+                    <Box sx={{
+                      bgcolor: 'rgba(88, 101, 242, 0.08)',
+                      border: '1px solid rgba(88, 101, 242, 0.3)',
+                      borderRadius: 2,
+                      p: 2,
+                      transition: 'all 300ms ease',
+                      '&:hover': {
+                        bgcolor: 'rgba(88, 101, 242, 0.12)',
+                        borderColor: 'rgba(88, 101, 242, 0.5)',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <DiscordIcon className="w-5 h-5" style={{ color: 'rgba(88, 101, 242, 0.9)' }} />
+                          <Typography sx={{ fontWeight: 600, color: '#fff', fontSize: '0.95rem' }}>Discord</Typography>
+                        </Box>
+                        {connections.discord ? (
+                          <Box sx={{
+                            bgcolor: 'rgba(16, 185, 129, 0.2)',
+                            border: '1px solid rgba(16, 185, 129, 0.5)',
+                            color: 'rgba(16, 185, 129, 0.9)',
+                            px: 1.5,
+                            py: 0.4,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5
+                          }}>
+                            <Check className="w-3 h-3" /> Connected
+                          </Box>
+                        ) : (
+                          <Box sx={{
+                            bgcolor: 'rgba(239, 68, 68, 0.2)',
+                            border: '1px solid rgba(239, 68, 68, 0.5)',
+                            color: 'rgba(239, 68, 68, 0.9)',
+                            px: 1.5,
+                            py: 0.4,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase'
+                          }}>
+                            Not Connected
+                          </Box>
+                        )}
+                      </Box>
+                      {connections.discord && (
+                        <Typography sx={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', mb: 1.5 }}>
+                          @{connections.discord.username}
+                        </Typography>
+                      )}
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {connections.discord ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => {
+                              setPlatformToDelete('discord');
+                              setDeleteModalOpen(true);
+                            }}
+                            sx={{
+                              color: 'rgba(239, 68, 68, 0.8)',
+                              borderColor: 'rgba(239, 68, 68, 0.4)',
+                              fontSize: '0.75rem',
+                              textTransform: 'none',
+                              flex: 1,
+                              '&:hover': {
+                                bgcolor: 'rgba(239, 68, 68, 0.1)',
+                                borderColor: 'rgba(239, 68, 68, 0.7)'
+                              }
+                            }}
+                            startIcon={<X className="w-3.5 h-3.5" />}
+                          >
+                            Disconnect
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => window.location.href = '/api/auth/discord'}
+                            sx={{
+                              background: 'rgba(88, 101, 242, 0.3)',
+                              color: 'rgba(88, 101, 242, 0.95)',
+                              fontSize: '0.75rem',
+                              textTransform: 'none',
+                              flex: 1,
+                              '&:hover': {
+                                background: 'rgba(88, 101, 242, 0.5)',
+                                color: '#fff'
+                              }
+                            }}
+                            startIcon={<DiscordIcon className="w-3.5 h-3.5" />}
+                          >
+                            Connect
+                          </Button>
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* Steam Service Card */}
+                    <Box sx={{
+                      bgcolor: 'rgba(20, 20, 20, 0.08)',
+                      border: '1px solid rgba(100, 100, 100, 0.3)',
+                      borderRadius: 2,
+                      p: 2,
+                      transition: 'all 300ms ease',
+                      '&:hover': {
+                        bgcolor: 'rgba(20, 20, 20, 0.12)',
+                        borderColor: 'rgba(100, 100, 100, 0.5)',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <SteamIcon className="w-5 h-5" style={{ color: 'rgba(100, 100, 100, 0.9)' }} />
+                          <Typography sx={{ fontWeight: 600, color: '#fff', fontSize: '0.95rem' }}>Steam</Typography>
+                        </Box>
+                        {connections.steam ? (
+                          <Box sx={{
+                            bgcolor: 'rgba(16, 185, 129, 0.2)',
+                            border: '1px solid rgba(16, 185, 129, 0.5)',
+                            color: 'rgba(16, 185, 129, 0.9)',
+                            px: 1.5,
+                            py: 0.4,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5
+                          }}>
+                            <Check className="w-3 h-3" /> Connected
+                          </Box>
+                        ) : (
+                          <Box sx={{
+                            bgcolor: 'rgba(239, 68, 68, 0.2)',
+                            border: '1px solid rgba(239, 68, 68, 0.5)',
+                            color: 'rgba(239, 68, 68, 0.9)',
+                            px: 1.5,
+                            py: 0.4,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase'
+                          }}>
+                            Not Connected
+                          </Box>
+                        )}
+                      </Box>
+                      {connections.steam && (
+                        <Typography sx={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', mb: 1.5 }}>
+                          {connections.steam.username}
+                        </Typography>
+                      )}
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {connections.steam ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => {
+                              setPlatformToDelete('steam');
+                              setDeleteModalOpen(true);
+                            }}
+                            sx={{
+                              color: 'rgba(239, 68, 68, 0.8)',
+                              borderColor: 'rgba(239, 68, 68, 0.4)',
+                              fontSize: '0.75rem',
+                              textTransform: 'none',
+                              flex: 1,
+                              '&:hover': {
+                                bgcolor: 'rgba(239, 68, 68, 0.1)',
+                                borderColor: 'rgba(239, 68, 68, 0.7)'
+                              }
+                            }}
+                            startIcon={<X className="w-3.5 h-3.5" />}
+                          >
+                            Disconnect
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => window.location.href = '/api/auth/steam'}
+                            sx={{
+                              background: 'rgba(100, 100, 100, 0.3)',
+                              color: 'rgba(100, 100, 100, 0.95)',
+                              fontSize: '0.75rem',
+                              textTransform: 'none',
+                              flex: 1,
+                              '&:hover': {
+                                background: 'rgba(100, 100, 100, 0.5)',
+                                color: '#fff'
+                              }
+                            }}
+                            startIcon={<SteamIcon className="w-3.5 h-3.5" />}
+                          >
+                            Connect
+                          </Button>
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* GitHub Service Card */}
+                    <Box sx={{
+                      bgcolor: 'rgba(100, 100, 100, 0.08)',
+                      border: '1px solid rgba(100, 100, 100, 0.3)',
+                      borderRadius: 2,
+                      p: 2,
+                      transition: 'all 300ms ease',
+                      '&:hover': {
+                        bgcolor: 'rgba(100, 100, 100, 0.12)',
+                        borderColor: 'rgba(100, 100, 100, 0.5)',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <GitHubIcon className="w-5 h-5" style={{ color: 'rgba(100, 100, 100, 0.9)' }} />
+                          <Typography sx={{ fontWeight: 600, color: '#fff', fontSize: '0.95rem' }}>GitHub</Typography>
+                        </Box>
+                        {connections.github ? (
+                          <Box sx={{
+                            bgcolor: 'rgba(16, 185, 129, 0.2)',
+                            border: '1px solid rgba(16, 185, 129, 0.5)',
+                            color: 'rgba(16, 185, 129, 0.9)',
+                            px: 1.5,
+                            py: 0.4,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5
+                          }}>
+                            <Check className="w-3 h-3" /> Connected
+                          </Box>
+                        ) : (
+                          <Box sx={{
+                            bgcolor: 'rgba(239, 68, 68, 0.2)',
+                            border: '1px solid rgba(239, 68, 68, 0.5)',
+                            color: 'rgba(239, 68, 68, 0.9)',
+                            px: 1.5,
+                            py: 0.4,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase'
+                          }}>
+                            Not Connected
+                          </Box>
+                        )}
+                      </Box>
+                      {connections.github && (
+                        <Typography sx={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', mb: 1.5 }}>
+                          @{connections.github.username}
+                        </Typography>
+                      )}
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {connections.github ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => {
+                              setPlatformToDelete('github');
+                              setDeleteModalOpen(true);
+                            }}
+                            sx={{
+                              color: 'rgba(239, 68, 68, 0.8)',
+                              borderColor: 'rgba(239, 68, 68, 0.4)',
+                              fontSize: '0.75rem',
+                              textTransform: 'none',
+                              flex: 1,
+                              '&:hover': {
+                                bgcolor: 'rgba(239, 68, 68, 0.1)',
+                                borderColor: 'rgba(239, 68, 68, 0.7)'
+                              }
+                            }}
+                            startIcon={<X className="w-3.5 h-3.5" />}
+                          >
+                            Disconnect
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => window.location.href = '/api/auth/github'}
+                            sx={{
+                              background: 'rgba(100, 100, 100, 0.3)',
+                              color: 'rgba(100, 100, 100, 0.95)',
+                              fontSize: '0.75rem',
+                              textTransform: 'none',
+                              flex: 1,
+                              '&:hover': {
+                                background: 'rgba(100, 100, 100, 0.5)',
+                                color: '#fff'
+                              }
+                            }}
+                            startIcon={<GitHubIcon className="w-3.5 h-3.5" />}
+                          >
+                            Connect
+                          </Button>
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* Twitch Service Card */}
+                    <Box sx={{
+                      bgcolor: 'rgba(139, 92, 246, 0.08)',
+                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                      borderRadius: 2,
+                      p: 2,
+                      transition: 'all 300ms ease',
+                      '&:hover': {
+                        bgcolor: 'rgba(139, 92, 246, 0.12)',
+                        borderColor: 'rgba(139, 92, 246, 0.5)',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <TwitchIcon className="w-5 h-5" style={{ color: 'rgba(139, 92, 246, 0.9)' }} />
+                          <Typography sx={{ fontWeight: 600, color: '#fff', fontSize: '0.95rem' }}>Twitch</Typography>
+                        </Box>
+                        {connections.twitch ? (
+                          <Box sx={{
+                            bgcolor: 'rgba(16, 185, 129, 0.2)',
+                            border: '1px solid rgba(16, 185, 129, 0.5)',
+                            color: 'rgba(16, 185, 129, 0.9)',
+                            px: 1.5,
+                            py: 0.4,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5
+                          }}>
+                            <Check className="w-3 h-3" /> Connected
+                          </Box>
+                        ) : (
+                          <Box sx={{
+                            bgcolor: 'rgba(239, 68, 68, 0.2)',
+                            border: '1px solid rgba(239, 68, 68, 0.5)',
+                            color: 'rgba(239, 68, 68, 0.9)',
+                            px: 1.5,
+                            py: 0.4,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase'
+                          }}>
+                            Not Connected
+                          </Box>
+                        )}
+                      </Box>
+                      {connections.twitch && (
+                        <Typography sx={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', mb: 1.5 }}>
+                          {connections.twitch.displayName || connections.twitch.username}
+                        </Typography>
+                      )}
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {connections.twitch ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => {
+                              setPlatformToDelete('twitch');
+                              setDeleteModalOpen(true);
+                            }}
+                            sx={{
+                              color: 'rgba(239, 68, 68, 0.8)',
+                              borderColor: 'rgba(239, 68, 68, 0.4)',
+                              fontSize: '0.75rem',
+                              textTransform: 'none',
+                              flex: 1,
+                              '&:hover': {
+                                bgcolor: 'rgba(239, 68, 68, 0.1)',
+                                borderColor: 'rgba(239, 68, 68, 0.7)'
+                              }
+                            }}
+                            startIcon={<X className="w-3.5 h-3.5" />}
+                          >
+                            Disconnect
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => window.location.href = '/api/auth/twitch'}
+                            sx={{
+                              background: 'rgba(139, 92, 246, 0.3)',
+                              color: 'rgba(139, 92, 246, 0.95)',
+                              fontSize: '0.75rem',
+                              textTransform: 'none',
+                              flex: 1,
+                              '&:hover': {
+                                background: 'rgba(139, 92, 246, 0.5)',
+                                color: '#fff'
+                              }
+                            }}
+                            startIcon={<TwitchIcon className="w-3.5 h-3.5" />}
+                          >
+                            Connect
+                          </Button>
+                        )}
+                      </Box>
+                    </Box>
+                  </Box>
                 </Box>
 
                 {/* Website/URL Section */}
@@ -1901,6 +2599,54 @@ export default function ProfileView({ overrideUserId }: { overrideUserId?: strin
               </Box>
             </Box>
           </Paper>
+
+          {/* Delete Connection Confirmation Modal */}
+          <Dialog
+            open={deleteModalOpen}
+            onClose={() => !deletingConnection && setDeleteModalOpen(false)}
+          >
+            <DialogTitle sx={{ color: 'rgba(255,255,255,0.95)', backgroundColor: '#1a1a1a' }}>
+              Remove Connection
+            </DialogTitle>
+            <DialogContent sx={{ backgroundColor: '#1a1a1a', color: 'rgba(255,255,255,0.85)' }}>
+              <Typography sx={{ mt: 2 }}>
+                Are you sure you want to remove your {platformToDelete ? (platformToDelete.charAt(0).toUpperCase() + platformToDelete.slice(1)) : 'service'} connection? You can reconnect anytime.
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ backgroundColor: '#1a1a1a', gap: 1, p: 2 }}>
+              <Button
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={deletingConnection}
+                sx={{
+                  color: 'rgba(255,255,255,0.7)',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)'
+                  }
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => platformToDelete && handleDeleteConnection(platformToDelete)}
+                disabled={deletingConnection}
+                variant="contained"
+                sx={{
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  color: '#fff',
+                  textTransform: 'none',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                  },
+                  '&:disabled': {
+                    opacity: 0.6
+                  }
+                }}
+              >
+                {deletingConnection ? 'Removing...' : 'Remove'}
+              </Button>
+            </DialogActions>
+          </Dialog>
         </Box>
         )}
       </Box>

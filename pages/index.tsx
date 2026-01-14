@@ -51,7 +51,7 @@ export default function Page() {
   }, [fetchTruckyStats]);
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white font-sans">
+    <div className="min-h-screen bg-neutral-950 text-white font-sans pt-20">
       <LandingPage miles={miles} members={members} />
     </div>
   );

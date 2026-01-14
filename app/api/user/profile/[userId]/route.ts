@@ -4,11 +4,9 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { app } from '@/app/api/lib/firebase';
 import { child, ref, get } from 'firebase/database';
 
-export async function GET(request: NextRequest, ctx: any) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   try {
-    // `params` may be a Promise in App Router — unwrap it first
-    const resolvedParams = await ctx.params;
-    const userIdOrSlug = resolvedParams.userId as string;
+    const { userId: userIdOrSlug } = await params;
 
     // Try direct lookup in Firebase RTDB first
     const direct = await getFirebaseUserProfile(userIdOrSlug);

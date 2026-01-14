@@ -3,7 +3,7 @@ import { Truck, MapPin, Calendar, Award } from "lucide-react";
 
 export default function AboutPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-950">
+    <div className="flex flex-col min-h-screen bg-neutral-950 pt-32">
       <main className="grow">
         {/* Hero Section */}
         <div className="relative h-[50vh] flex items-center justify-center overflow-hidden">

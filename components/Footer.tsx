@@ -9,7 +9,7 @@ export default function Footer() {
   return (
     <footer className="bg-neutral-950 border-t border-white/10 pt-16 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           {/* Brand Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -27,14 +27,27 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Quick Links - Refactor to use better typography and transitions */}
+          {/* Quick Links */}
           <div>
             <h3 className="text-white font-bold text-lg mb-6">Quick Links</h3>
             <ul className="space-y-3">
               <FooterLink href="/">Home</FooterLink>
               <FooterLink href="/about">About Us</FooterLink>
               <FooterLink href="/gallery">Gallery</FooterLink>
+              <FooterLink href="/search">Search Members</FooterLink>
               <FooterLink href="https://hub.truckyapp.com/company/40764" target="_blank">Apply Now</FooterLink>
+            </ul>
+          </div>
+
+          {/* Community */}
+          <div>
+            <h3 className="text-white font-bold text-lg mb-6">Community</h3>
+            <ul className="space-y-3">
+              <FooterLink href="/leaderboard">Leaderboard</FooterLink>
+              <FooterLink href="/activity">Activity Feed</FooterLink>
+              <FooterLink href="/achievements">Achievements</FooterLink>
+              <FooterLink href="/analytics">Analytics</FooterLink>
+              <FooterLink href="/profile">My Profile</FooterLink>
             </ul>
           </div>
 
