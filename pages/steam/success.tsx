@@ -2,94 +2,98 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../../app/api/lib/firebase";
 
 export default function SteamSuccess() {
   const router = useRouter();
 
   useEffect(() => {
-    const saveConnection = async (userId: string, steamData: any) => {
+    const processAuth = async () => {
       try {
-        const photoURL = steamData.avatar_url || undefined;
-        const response = await fetch(`/api/user/connections/${userId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            platform: 'steam',
-            connection: {
-              id: steamData.id,
-              username: steamData.username || steamData.id,
-              avatar: photoURL,
-            },
-          }),
-        });
+        const params = new URLSearchParams(window.location.search);
         
-        if (response.ok) {
-          console.log('Steam connection saved to profile');
-        } else {
-          console.error('Failed to save Steam connection');
+        // Try to get the new auth_data (contains token)
+        const authDataParam = params.get('auth_data');
+        if (authDataParam) {
+          try {
+            const decoded = atob(decodeURIComponent(authDataParam));
+            const authData = JSON.parse(decoded);
+            const { user, token, steamData } = authData;
+
+            console.log('Steam success - received auth token for user:', user.uid);
+
+            // Store user info in localStorage
+            const mapped = {
+              displayName: user.displayName,
+              email: user.email,
+              photoURL: user.photoURL,
+              uid: user.uid,
+            };
+            try {
+              localStorage.setItem('user', JSON.stringify(mapped));
+            } catch {}
+
+            // Dispatch auth event
+            try {
+              window.dispatchEvent(new CustomEvent('auth-change', { detail: mapped }));
+            } catch {}
+
+            // Store auth token in localStorage for persistence
+            try {
+              localStorage.setItem('authToken', token);
+            } catch {}
+
+            // Redirect to home
+            setTimeout(() => {
+              router.replace('/');
+            }, 500);
+          } catch (e) {
+            console.error('Failed to parse auth_data payload', e);
+            router.replace('/login');
+          }
+          return;
         }
-      } catch (error) {
-        console.error('Error saving Steam connection:', error);
-      } finally {
-        // Redirect to profile to see the connection
-        setTimeout(() => router.replace('/profile'), 1000);
+
+        // Fallback: try old steam_user param (for backward compatibility)
+        const steamUserParam = params.get('steam_user');
+        if (steamUserParam) {
+          try {
+            const decoded = atob(decodeURIComponent(steamUserParam));
+            const parsed = JSON.parse(decoded);
+            const photoURL = parsed.avatar_url || undefined;
+            const mapped = {
+              displayName: parsed.username,
+              email: undefined,
+              photoURL,
+              uid: parsed.id,
+            };
+            try {
+              localStorage.setItem('user', JSON.stringify(mapped));
+            } catch {}
+
+            try {
+              window.dispatchEvent(new CustomEvent('auth-change', { detail: mapped }));
+            } catch {}
+
+            console.log('Steam success: using legacy mode');
+            setTimeout(() => {
+              router.replace('/profile');
+            }, 500);
+          } catch (e) {
+            console.error('Failed to parse steam_user payload', e);
+            router.replace('/login');
+          }
+          return;
+        }
+
+        // No auth data found
+        router.replace('/login');
+      } catch (e) {
+        console.error('Steam success error:', e);
+        router.replace('/login');
       }
     };
 
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const su = params.get('steam_user');
-      if (su) {
-        try {
-          const decoded = atob(decodeURIComponent(su));
-          const parsed = JSON.parse(decoded);
-          const photoURL = parsed.avatar_url || undefined;
-
-          console.log('Steam success: user ->', parsed);
-
-          // Check if user is already authenticated in Firebase
-          const currentUser = auth.currentUser;
-          if (currentUser) {
-            console.log('Steam - current user already authenticated:', currentUser.uid);
-            saveConnection(currentUser.uid, parsed);
-          } else {
-            console.log('Steam - no current user, waiting for auth state...');
-            // Wait for auth to be ready
-            let unsubscribe: (() => void) | null = null;
-            let completed = false;
-            const timeout = setTimeout(() => {
-              if (unsubscribe && !completed) {
-                unsubscribe();
-              }
-              // If auth didn't load after 5 seconds, redirect anyway
-              if (!completed) {
-                console.warn('Auth timeout - redirecting');
-                router.replace('/profile');
-              }
-            }, 5000);
-
-            unsubscribe = onAuthStateChanged(auth, async (user) => {
-              if (user && !completed) {
-                completed = true;
-                clearTimeout(timeout);
-                if (unsubscribe) unsubscribe();
-                saveConnection(user.uid, parsed);
-              }
-            });
-          }
-        } catch (e) {
-          console.error('Failed to parse steam_user payload', e);
-          router.replace('/profile');
-        }
-      } else {
-        router.replace('/profile');
-      }
-    } catch (e) {
-      console.error(e);
-      router.replace('/profile');
-    }
+    processAuth();
   }, [router]);
 
   return (

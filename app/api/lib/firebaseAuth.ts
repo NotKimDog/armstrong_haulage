@@ -100,3 +100,68 @@ export async function verifyToken(token: string): Promise<{ uid: string; email: 
     return null;
   }
 }
+
+/**
+ * Handle OAuth user sign-in or account creation
+ * Creates a new account if user doesn't exist, otherwise returns existing user
+ */
+export async function signInOrCreateOAuthUser(
+  email: string,
+  displayName: string,
+  photoURL?: string,
+  provider?: string
+) {
+  try {
+    // Try to sign in with a temporary password if user exists
+    // Since we don't have a password for OAuth users, we'll generate a random one
+    const tempPassword = Math.random().toString(36).slice(-20);
+    
+    try {
+      // First try to see if user exists by attempting sign in
+      // This will fail if user doesn't exist, which is fine
+      const userCredential = await signInWithEmailAndPassword(auth, email, tempPassword);
+      const user = userCredential.user;
+      const idToken = await user.getIdToken();
+      
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        token: idToken,
+        isNew: false,
+      };
+    } catch (signInError: any) {
+      // User doesn't exist, create new account
+      if (signInError.code === 'auth/user-not-found') {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, tempPassword);
+        const user = userCredential.user;
+        
+        // Set user profile with OAuth data
+        await setUserProfile(user.uid, {
+          id: user.uid,
+          email: user.email || '',
+          displayName: displayName,
+          photoURL: photoURL || undefined,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        
+        const idToken = await user.getIdToken();
+        
+        return {
+          uid: user.uid,
+          email: user.email,
+          displayName: displayName,
+          photoURL: photoURL || undefined,
+          token: idToken,
+          isNew: true,
+        };
+      }
+      throw signInError;
+    }
+  } catch (error: any) {
+    console.error('OAuth sign in/create error:', error);
+    throw new Error(error.message || 'Failed to sign in with OAuth provider');
+  }
+}

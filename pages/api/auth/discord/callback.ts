@@ -1,26 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getDatabase, ref as dbRef, update, get } from 'firebase/database';
-import { initializeApp } from 'firebase/app';
-
-// Initialize Firebase if needed
-let app: any;
-try {
-  // Try to use existing app from firebase config
-  const { app: firebaseApp } = require('@/app/api/lib/firebase');
-  app = firebaseApp;
-} catch {
-  // Fallback if needed
-  const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID,
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-  };
-  app = initializeApp(firebaseConfig);
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const code = Array.isArray(req.query.code) ? req.query.code[0] : req.query.code;
@@ -99,20 +77,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       avatarUrl = null;
     }
 
-    // For now we simply redirect to frontend with a base64-encoded payload.
-    // Include avatarUrl so the client can immediately show a profile picture.
-    // TODO: Exchange this for a server session / Firebase custom token to sign the user in.
-    const payloadObj: Record<string, unknown> = {
-      id: user.id,
-      username: user.username,
-      discriminator: user.discriminator,
-    };
-    if (avatarUrl) payloadObj.avatar_url = avatarUrl;
+    // Call our OAuth sign-in endpoint to create/signin user in Firebase
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const host = req.headers.host || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
 
-    const payload = encodeURIComponent(Buffer.from(JSON.stringify(payloadObj)).toString('base64'));
+    const oauthSignInRes = await fetch(`${baseUrl}/api/auth/oauth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user.email || `discord_${user.id}@armstronghaulage.com`,
+        displayName: user.username,
+        photoURL: avatarUrl,
+        provider: 'discord',
+      }),
+    });
 
-    // Redirect to a small client page that will store the discord payload in localStorage
-    res.redirect(`/discord/success?discord_user=${payload}`);
+    if (!oauthSignInRes.ok) {
+      const errorText = await oauthSignInRes.text();
+      console.error('Failed to sign in with Discord:', errorText);
+      res.status(500).send('Failed to sign in with Discord');
+      return;
+    }
+
+    const authData = await oauthSignInRes.json();
+
+    // Encode the response data to pass to success page
+    const payload = encodeURIComponent(
+      Buffer.from(
+        JSON.stringify({
+          user: authData.user,
+          token: authData.token,
+          discordData: {
+            id: user.id,
+            username: user.username,
+            avatar: avatarUrl,
+          },
+        })
+      ).toString('base64')
+    );
+
+    // Redirect to success page with auth token
+    res.redirect(`/discord/success?auth_data=${payload}`);
   } catch (err) {
     console.error(err);
     res.status(500).send('Unexpected error');

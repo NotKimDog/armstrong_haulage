@@ -51,17 +51,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const user = await userRes.json();
 
-    // Build payload with GitHub user info
-    const payloadObj: Record<string, unknown> = {
-      id: user.id,
-      username: user.login,
-      avatar_url: user.avatar_url,
-    };
+    // Call our OAuth sign-in endpoint to create/signin user in Firebase
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const host = req.headers.host || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
 
-    const payload = encodeURIComponent(Buffer.from(JSON.stringify(payloadObj)).toString('base64'));
+    const oauthSignInRes = await fetch(`${baseUrl}/api/auth/oauth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user.email || `github_${user.id}@armstronghaulage.com`,
+        displayName: user.login,
+        photoURL: user.avatar_url,
+        provider: 'github',
+      }),
+    });
 
-    // Redirect to success page with GitHub user data
-    return res.redirect(`/github/success?github_user=${payload}`);
+    if (!oauthSignInRes.ok) {
+      const errorText = await oauthSignInRes.text();
+      console.error('Failed to sign in with GitHub:', errorText);
+      return res.status(500).send('Failed to sign in with GitHub');
+    }
+
+    const authData = await oauthSignInRes.json();
+
+    // Encode the response data to pass to success page
+    const payload = encodeURIComponent(
+      Buffer.from(
+        JSON.stringify({
+          user: authData.user,
+          token: authData.token,
+          githubData: {
+            id: user.id,
+            username: user.login,
+            avatar: user.avatar_url,
+          },
+        })
+      ).toString('base64')
+    );
+
+    // Redirect to success page with auth token
+    return res.redirect(`/github/success?auth_data=${payload}`);
   } catch (err) {
     console.error(err);
     return res.status(500).send('Unexpected error');

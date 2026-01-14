@@ -1,24 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getDatabase, ref as dbRef, update, get } from 'firebase/database';
-import { initializeApp } from 'firebase/app';
-
-// Initialize Firebase if needed
-let app: any;
-try {
-  const { app: firebaseApp } = require('@/app/api/lib/firebase');
-  app = firebaseApp;
-} catch {
-  const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID,
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-  };
-  app = initializeApp(firebaseConfig);
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const code = Array.isArray(req.query.code) ? req.query.code[0] : req.query.code;
@@ -89,17 +69,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    const twitchUserData = {
-      id: user.id,
-      username: user.login,
-      displayName: user.display_name,
-      avatar: user.profile_image_url,
-      connectedAt: new Date().toISOString(),
-    };
+    // Call our OAuth sign-in endpoint to create/signin user in Firebase
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const host = req.headers.host || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
 
-    // Encode and redirect to success page
-    const encodedData = Buffer.from(JSON.stringify(twitchUserData)).toString('base64');
-    res.redirect(`/twitch/success?user=${encodedData}`);
+    const oauthSignInRes = await fetch(`${baseUrl}/api/auth/oauth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: `twitch_${user.id}@armstronghaulage.com`,
+        displayName: user.display_name,
+        photoURL: user.profile_image_url,
+        provider: 'twitch',
+      }),
+    });
+
+    if (!oauthSignInRes.ok) {
+      const errorText = await oauthSignInRes.text();
+      console.error('Failed to sign in with Twitch:', errorText);
+      res.status(500).send('Failed to sign in with Twitch');
+      return;
+    }
+
+    const authData = await oauthSignInRes.json();
+
+    // Encode the response data to pass to success page
+    const payload = encodeURIComponent(
+      Buffer.from(
+        JSON.stringify({
+          user: authData.user,
+          token: authData.token,
+          twitchData: {
+            id: user.id,
+            username: user.login,
+            displayName: user.display_name,
+            avatar: user.profile_image_url,
+          },
+        })
+      ).toString('base64')
+    );
+
+    // Redirect to success page with auth token
+    res.redirect(`/twitch/success?auth_data=${payload}`);
   } catch (error) {
     console.error('Twitch OAuth error:', error);
     res.status(500).send('Internal server error');

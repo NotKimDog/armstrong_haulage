@@ -55,17 +55,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const player = players[0];
-    const steamUser = {
-      id: player.steamid,
-      username: player.personaname,
-      avatar_url: player.avatarfull,
-    };
 
-    // Encode the Steam user info
-    const payload = encodeURIComponent(Buffer.from(JSON.stringify(steamUser)).toString('base64'));
+    // Call our OAuth sign-in endpoint to create/signin user in Firebase
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const host = req.headers.host || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
 
-    // Redirect to success page with steam_user param
-    res.redirect(`/steam/success?steam_user=${payload}`);
+    const oauthSignInRes = await fetch(`${baseUrl}/api/auth/oauth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: `steam_${player.steamid}@armstronghaulage.com`,
+        displayName: player.personaname,
+        photoURL: player.avatarfull,
+        provider: 'steam',
+      }),
+    });
+
+    if (!oauthSignInRes.ok) {
+      const errorText = await oauthSignInRes.text();
+      console.error('Failed to sign in with Steam:', errorText);
+      res.redirect('/profile');
+      return;
+    }
+
+    const authData = await oauthSignInRes.json();
+
+    // Encode the response data to pass to success page
+    const payload = encodeURIComponent(
+      Buffer.from(
+        JSON.stringify({
+          user: authData.user,
+          token: authData.token,
+          steamData: {
+            id: player.steamid,
+            username: player.personaname,
+            avatar: player.avatarfull,
+          },
+        })
+      ).toString('base64')
+    );
+
+    // Redirect to success page with auth token
+    res.redirect(`/steam/success?auth_data=${payload}`);
   } catch (err) {
     console.error('Steam OAuth error:', err);
     res.status(500).send('Authentication failed');

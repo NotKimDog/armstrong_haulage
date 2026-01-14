@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { auth } from '@/app/api/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Box, Typography } from '@mui/material';
 
@@ -11,69 +10,104 @@ export default function TwitchSuccess() {
   const [status, setStatus] = useState('Processing...');
 
   useEffect(() => {
-    const processConnection = async () => {
+    const processAuth = async () => {
       try {
-        // Check if user is already authenticated
-        const currentUser = auth.currentUser;
-        
-        if (!currentUser) {
-          // Wait for auth state to be ready
-          const unsubscribe = auth.onAuthStateChanged(async (user) => {
-            if (user) {
-              unsubscribe();
-              await saveConnection(user.uid);
-            }
-          });
-          
-          // Timeout after 10 seconds
-          setTimeout(() => unsubscribe(), 10000);
+        // Try to get the new auth_data (contains token)
+        const authDataParam = router.query.auth_data as string;
+        if (authDataParam) {
+          try {
+            const decoded = atob(decodeURIComponent(authDataParam));
+            const authData = JSON.parse(decoded);
+            const { user, token, twitchData } = authData;
+
+            console.log('Twitch success - received auth token for user:', user.uid);
+
+            // Store user info in localStorage
+            const mapped = {
+              displayName: user.displayName,
+              email: user.email,
+              photoURL: user.photoURL,
+              uid: user.uid,
+            };
+            try {
+              localStorage.setItem('user', JSON.stringify(mapped));
+            } catch {}
+
+            // Dispatch auth event
+            try {
+              window.dispatchEvent(new CustomEvent('auth-change', { detail: mapped }));
+            } catch {}
+
+            // Store auth token in localStorage for persistence
+            try {
+              localStorage.setItem('authToken', token);
+            } catch {}
+
+            setStatus('Connected successfully!');
+            // Redirect to home
+            setTimeout(() => {
+              router.replace('/');
+            }, 1000);
+          } catch (e) {
+            console.error('Failed to parse auth_data payload', e);
+            setStatus('Error processing authentication');
+            setTimeout(() => {
+              router.replace('/login');
+            }, 2000);
+          }
           return;
         }
 
-        await saveConnection(currentUser.uid);
-      } catch (error) {
-        console.error('Error:', error);
-        setStatus('Error processing connection');
-      }
-    };
+        // Fallback: try old user param (for backward compatibility)
+        const userParam = router.query.user as string;
+        if (userParam) {
+          try {
+            const twitchData = JSON.parse(Buffer.from(userParam, 'base64').toString());
+            const mapped = {
+              displayName: twitchData.displayName,
+              email: undefined,
+              photoURL: twitchData.avatar,
+              uid: twitchData.id,
+            };
+            try {
+              localStorage.setItem('user', JSON.stringify(mapped));
+            } catch {}
 
-    const saveConnection = async (userId: string) => {
-      try {
-        const userData = router.query.user as string;
-        if (!userData) {
-          setStatus('No user data received');
+            try {
+              window.dispatchEvent(new CustomEvent('auth-change', { detail: mapped }));
+            } catch {}
+
+            console.log('Twitch success: using legacy mode');
+            setStatus('Connected successfully!');
+            setTimeout(() => {
+              router.replace('/profile');
+            }, 1000);
+          } catch (e) {
+            console.error('Failed to parse user payload', e);
+            setStatus('Error processing authentication');
+            setTimeout(() => {
+              router.replace('/login');
+            }, 2000);
+          }
           return;
         }
 
-        const twitchData = JSON.parse(Buffer.from(userData, 'base64').toString());
-
-        const response = await fetch(`/api/user/connections/${userId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            platform: 'twitch',
-            id: twitchData.id,
-            username: twitchData.username,
-            displayName: twitchData.displayName,
-            avatar: twitchData.avatar,
-            connectedAt: twitchData.connectedAt,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to save connection');
-        }
-
-        setStatus('Connected successfully!');
-        setTimeout(() => router.push('/profile'), 1000);
-      } catch (error) {
-        console.error('Connection error:', error);
-        setStatus('Failed to save connection');
+        // No auth data found
+        setStatus('No authentication data received');
+        setTimeout(() => {
+          router.replace('/login');
+        }, 2000);
+      } catch (e) {
+        console.error('Twitch success error:', e);
+        setStatus('Error processing authentication');
+        setTimeout(() => {
+          router.replace('/login');
+        }, 2000);
       }
     };
 
     if (router.isReady) {
-      processConnection();
+      processAuth();
     }
   }, [router.isReady, router.query]);
 
