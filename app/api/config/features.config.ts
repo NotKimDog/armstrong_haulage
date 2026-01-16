@@ -412,11 +412,13 @@ export function isFeatureEnabled(feature: 'cache' | 'notifications' | 'activity'
  */
 export function getEnvironmentConfig() {
   const env = process.env.NODE_ENV || 'development';
+  const isStaging = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_ENV === 'staging';
 
   return {
     isDevelopment: env === 'development',
     isProduction: env === 'production',
-    isStaging: env === 'staging',
+    isTest: env === 'test',
+    isStaging: isStaging,
     environment: env,
   };
 }
