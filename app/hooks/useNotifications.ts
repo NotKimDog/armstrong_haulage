@@ -12,6 +12,11 @@ interface UseNotificationsOptions {
   autoMarkAsRead?: boolean;
 }
 
+interface CreateNotificationOptions {
+  relatedUserId?: string;
+  metadata?: Record<string, any>;
+}
+
 export function useNotifications(options: UseNotificationsOptions = {}) {
   const {
     userId,
@@ -136,7 +141,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       type: NotificationType,
       title: string,
       message: string,
-      options?: Parameters<typeof createNotification>[3]
+      options?: CreateNotificationOptions
     ) => {
       if (!userId) return;
 
